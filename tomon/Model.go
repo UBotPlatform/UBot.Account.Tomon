@@ -99,13 +99,13 @@ type RoleInfo struct {
 	Position    int    `json:"position"`
 }
 type MemberInfo struct {
-	Deaf     bool       `json:"deaf"`
-	GuildID  string     `json:"guild_id"`
-	JoinedAt string     `json:"joined_at"`
-	Mute     bool       `json:"mute"`
-	Nick     *string    `json:"nick,omitempty"`
-	Roles    []RoleInfo `json:"roles,omitempty"`
-	User     UserInfo   `json:"user"`
+	Deaf     bool     `json:"deaf"`
+	GuildID  string   `json:"guild_id"`
+	JoinedAt string   `json:"joined_at"`
+	Mute     bool     `json:"mute"`
+	Nick     *string  `json:"nick,omitempty"`
+	Roles    []string `json:"roles,omitempty"`
+	User     UserInfo `json:"user"`
 }
 
 type gatewayIdentityRequest struct {
