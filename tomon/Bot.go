@@ -308,6 +308,7 @@ func (bot *Bot) receiveNotification() bool {
 				log.Println("invaild identity notification:", err)
 				break
 			}
+			success = true
 			bot.resetState()
 			for _, dmChannel := range data.DMChannels {
 				bot.state.Channels[dmChannel.ID] = dmChannel
