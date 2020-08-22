@@ -150,7 +150,7 @@ type MessageInfo struct {
 	Reactions       []ReactionInfo   `json:"reactions"`
 	Mentions        []UserInfo       `json:"mentions"`
 	Stamps          []StampsInfo     `json:"stamps"`
-	Reply           []MessageInfo    `json:"reply,omitempty"`
+	Reply           *MessageInfo     `json:"reply,omitempty"`
 	Pinned          bool             `json:"pinned"`
 	EditedTimestamp *string          `json:"edited_timestamp"`
 	Member          *MemberInfo      `json:"member,omitempty"`
