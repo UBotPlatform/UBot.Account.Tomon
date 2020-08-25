@@ -204,7 +204,12 @@ func (bot *Bot) receiveNotification() bool {
 					break
 				}
 				bot.state.Channels[data.ID] = data
-				bot.state.ChannelsInGuild[data.GuildID][data.ID] = 0
+				cpg, ok := bot.state.ChannelsInGuild[data.GuildID]
+				if !ok {
+					cpg = make(map[string]int)
+					bot.state.ChannelsInGuild[data.GuildID] = cpg
+				}
+				cpg[data.ID] = 0
 				if bot.Event.OnChannelCreate != nil {
 					bot.Event.OnChannelCreate(&data)
 				}
