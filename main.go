@@ -200,6 +200,34 @@ func getSelfID() (string, error) {
 	return bot.Self().ID, nil
 }
 
+func getPlatformID() (string, error) {
+	return "Tomon", nil
+}
+
+func getGroupList() ([]string, error) {
+	var r []string
+	channels := bot.Channels()
+	for _, channel := range channels {
+		if channel.Type == 0 {
+			r = append(r, channel.ID)
+		}
+	}
+	return r, nil
+}
+
+func getMemberList(id string) ([]string, error) {
+	var r []string
+	channel, err := bot.Channel(id)
+	if err != nil {
+		return nil, err
+	}
+	members := bot.Members(channel.GuildID)
+	for _, member := range members {
+		r = append(r, member.User.ID)
+	}
+	return r, nil
+}
+
 func main() {
 	var err error
 	switch strings.ToLower(os.Args[3]) {
@@ -223,6 +251,9 @@ func main() {
 			GetMemberName:   getMemberName,
 			GetUserAvatar:   getUserAvatar,
 			GetSelfID:       getSelfID,
+			GetPlatformID:   getPlatformID,
+			GetGroupList:    getGroupList,
+			GetMemberList:   getMemberList,
 		}
 	})
 	ubot.AssertNoError(err)
