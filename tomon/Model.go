@@ -3,6 +3,7 @@ package tomon
 import (
 	"encoding/json"
 	"io"
+	"time"
 )
 
 type LoginInfo interface {
@@ -56,24 +57,24 @@ type SelfInfo struct {
 	Banned        bool    `json:"banned"`
 }
 type GuildInfo struct {
-	ID                 string `json:"id"`
-	Name               string `json:"name"`
-	Icon               string `json:"icon"`
-	IconURL            string `json:"icon_url"`
-	JoinedAt           string `json:"joined_at"`
-	Background         string `json:"background"`
-	BackgroundProps    string `json:"background_props"`
-	BackgroundURL      string `json:"background_url"`
-	OwnerID            string `json:"owner_id"`
-	Position           int    `json:"position"`
-	SystemChannelFlags int    `json:"system_channel_flags"`
-	SystemChannelID    string `json:"system_channel_id"`
+	ID                 string     `json:"id"`
+	Name               string     `json:"name"`
+	Icon               string     `json:"icon"`
+	IconURL            string     `json:"icon_url"`
+	JoinedAt           *time.Time `json:"joined_at"`
+	Background         string     `json:"background"`
+	BackgroundProps    string     `json:"background_props"`
+	BackgroundURL      string     `json:"background_url"`
+	OwnerID            string     `json:"owner_id"`
+	Position           int        `json:"position"`
+	SystemChannelFlags int        `json:"system_channel_flags"`
+	SystemChannelID    string     `json:"system_channel_id"`
 }
 type Overwrite struct {
 	ID    string `json:"id"`
 	Type  string `json:"type"`
-	Allow uint64 `json:"allow,string,omitempty"`
-	Deny  uint64 `json:"deny,string,omitempty"`
+	Allow uint64 `json:"allow,omitempty"`
+	Deny  uint64 `json:"deny,omitempty"`
 }
 type ChannelInfo struct {
 	DefaultMessageNotifications int         `json:"default_message_notifications"`
@@ -99,13 +100,13 @@ type RoleInfo struct {
 	Position    int    `json:"position"`
 }
 type MemberInfo struct {
-	Deaf     bool     `json:"deaf"`
-	GuildID  string   `json:"guild_id"`
-	JoinedAt string   `json:"joined_at"`
-	Mute     bool     `json:"mute"`
-	Nick     *string  `json:"nick,omitempty"`
-	Roles    []string `json:"roles,omitempty"`
-	User     UserInfo `json:"user"`
+	Deaf     bool       `json:"deaf"`
+	GuildID  string     `json:"guild_id"`
+	JoinedAt *time.Time `json:"joined_at"`
+	Mute     bool       `json:"mute"`
+	Nick     *string    `json:"nick,omitempty"`
+	Roles    []string   `json:"roles,omitempty"`
+	User     UserInfo   `json:"user"`
 }
 
 type gatewayIdentityRequest struct {
@@ -160,7 +161,7 @@ type AttachmentInfo struct {
 	Filename string `json:"filename"`
 	Hash     string `json:"hash"`
 	Type     string `json:"type"`
-	Size     int    `json:"size,string"`
+	Size     int    `json:"size"`
 	Height   int    `json:"height,omitempty"`
 	Width    int    `json:"width,omitempty"`
 	URL      string `json:"url"`
@@ -174,17 +175,17 @@ type ReactionInfo struct {
 	Me    bool `json:"me"`
 }
 type StampsInfo struct {
-	ID        string  `json:"id"`
-	Alias     string  `json:"alias"`
-	AuthorID  string  `json:"author_id"`
-	PackID    string  `json:"pack_id"`
-	Position  int     `json:"position"`
-	Hash      string  `json:"hash"`
-	Animated  bool    `json:"animated"`
-	URL       string  `json:"url"`
-	Width     int     `json:"width"`
-	Height    int     `json:"height"`
-	UpdatedAt *string `json:"updated_at"`
+	ID        string     `json:"id"`
+	Alias     string     `json:"alias"`
+	AuthorID  string     `json:"author_id"`
+	PackID    string     `json:"pack_id"`
+	Position  int        `json:"position"`
+	Hash      string     `json:"hash"`
+	Animated  bool       `json:"animated"`
+	URL       string     `json:"url"`
+	Width     int        `json:"width"`
+	Height    int        `json:"height"`
+	UpdatedAt *time.Time `json:"updated_at"`
 }
 type ReaderWithName struct {
 	Reader io.Reader
