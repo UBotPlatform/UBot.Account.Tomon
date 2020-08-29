@@ -9,6 +9,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -28,6 +29,7 @@ type Bot struct {
 	lastPong          time.Time
 	heartbeatInterval time.Duration
 	closed            bool
+	mux               sync.Mutex
 	state             struct {
 		Guilds          map[string]GuildInfo             //[GuildID]
 		Channels        map[string]ChannelInfo           //[ChannelID]
@@ -394,6 +396,8 @@ func (bot *Bot) ChannelsInGuild(guildID string) (map[string]int, error) {
 	return r, nil
 }
 func (bot *Bot) Members(guildID string) map[string]MemberInfo {
+	bot.mux.Lock()
+	defer bot.mux.Unlock()
 	r, ok := bot.state.Members[guildID]
 	if !ok {
 		r = make(map[string]MemberInfo)
@@ -481,7 +485,9 @@ func (bot *Bot) heartbeatLoop() {
 		}
 		time.Sleep(bot.heartbeatInterval / 2)
 		if time.Since(bot.lastPong) > bot.heartbeatInterval {
+			bot.mux.Lock()
 			_ = bot.gateway.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseTryAgainLater, ""))
+			bot.mux.Unlock()
 			_ = bot.gateway.Close()
 			break
 		}
@@ -489,6 +495,8 @@ func (bot *Bot) heartbeatLoop() {
 }
 
 func (bot *Bot) gatewayIdentity() error {
+	bot.mux.Lock()
+	defer bot.mux.Unlock()
 	var request gatewayIdentityRequest
 	request.Op = 2
 	request.D.Token = bot.token
@@ -496,10 +504,14 @@ func (bot *Bot) gatewayIdentity() error {
 }
 
 func (bot *Bot) gatewayPing() error {
+	bot.mux.Lock()
+	defer bot.mux.Unlock()
 	return bot.gateway.WriteMessage(websocket.TextMessage, []byte(`{"op":1}`))
 }
 
 func (bot *Bot) gatewayPong() error {
+	bot.mux.Lock()
+	defer bot.mux.Unlock()
 	return bot.gateway.WriteMessage(websocket.TextMessage, []byte(`{"op":4}`))
 }
 
@@ -508,6 +520,8 @@ func (bot *Bot) Self() *UserInfo {
 }
 
 func (bot *Bot) Close() error {
+	bot.mux.Lock()
+	defer bot.mux.Unlock()
 	bot.closed = true
 	bot.resetState()
 	_ = bot.gateway.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
