@@ -490,6 +490,7 @@ func (bot *Bot) heartbeatLoop(taskId int32) {
 		}
 		time.Sleep(bot.heartbeatInterval / 2)
 		if time.Since(bot.lastPong) > bot.heartbeatInterval {
+			log.Println("heartbeat lost, will disconnect")
 			bot.mux.Lock()
 			_ = bot.gateway.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseTryAgainLater, ""))
 			bot.mux.Unlock()
