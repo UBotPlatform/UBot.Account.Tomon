@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -28,6 +29,7 @@ type Bot struct {
 	gateway           *websocket.Conn
 	lastPong          time.Time
 	heartbeatInterval time.Duration
+	heartbeatTaskId   int32
 	closed            bool
 	mux               sync.Mutex
 	state             struct {
@@ -340,7 +342,7 @@ func (bot *Bot) receiveNotification() bool {
 			} else {
 				bot.heartbeatInterval = time.Duration(data.HeartbeatInterval) * time.Millisecond
 			}
-			go bot.heartbeatLoop()
+			go bot.heartbeatLoop(atomic.AddInt32(&bot.heartbeatTaskId, 1))
 		case 4: //HEARTBEAT_ACK
 			bot.lastPong = time.Now()
 		case 5: //VOICE_STATE_UPDATE
@@ -476,8 +478,11 @@ func (bot *Bot) CreateAttachmentMessage(channelID string, files []ReaderWithName
 	return &r, nil
 }
 
-func (bot *Bot) heartbeatLoop() {
+func (bot *Bot) heartbeatLoop(taskId int32) {
 	for {
+		if bot.heartbeatTaskId != taskId {
+			break
+		}
 		err := bot.gatewayPing()
 		if err != nil {
 			_ = bot.gateway.Close()
