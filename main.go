@@ -14,7 +14,6 @@ import (
 
 var event *ubot.AccountEventEmitter
 var bot *tomon.Bot
-var loginInfo tomon.LoginInfo
 
 func getGroupName(id string) (string, error) {
 	info, err := bot.Channel(id)
@@ -54,7 +53,7 @@ func toUBotMessage(msg *tomon.MessageInfo) string {
 	//fmt.Println(r)
 	return r
 }
-func login() error {
+func login(loginInfo tomon.LoginInfo) error {
 	var err error
 	bot, err = tomon.New(loginInfo)
 	if err != nil {
@@ -99,11 +98,6 @@ func login() error {
 		}
 	}
 	return err
-}
-func logout() error {
-	localBot := bot
-	bot = nil
-	return localBot.Close()
 }
 func sendChatMessage(msgType ubot.MsgType, source string, target string, message string) error {
 	entities := ubot.ParseMsg(message)
@@ -230,20 +224,23 @@ func getMemberList(id string) ([]string, error) {
 
 func main() {
 	var err error
+	var loginInfo tomon.LoginInfo
 	switch strings.ToLower(os.Args[3]) {
 	case "account":
 		loginInfo = &tomon.LoginByPassword{FullName: os.Args[4], Password: os.Args[5]}
 	case "token":
 		loginInfo = &tomon.LoginByToken{Token: os.Args[4]}
 	}
-	go login() //nolint:errcgeck
+	err = login(loginInfo)
+	if err != nil {
+		fmt.Println("Failed to login to tomon:", err)
+		os.Exit(111)
+	}
 	err = ubot.HostAccount("Tomon Bot", func(e *ubot.AccountEventEmitter) *ubot.Account {
 		event = e
 		return &ubot.Account{
 			GetGroupName:    getGroupName,
 			GetUserName:     getUserName,
-			Login:           login,
-			Logout:          logout,
 			SendChatMessage: sendChatMessage,
 			RemoveMember:    removeMember,
 			ShutupMember:    shutupMember,
@@ -257,5 +254,5 @@ func main() {
 		}
 	})
 	ubot.AssertNoError(err)
-	_ = logout()
+	_ = bot.Close()
 }
