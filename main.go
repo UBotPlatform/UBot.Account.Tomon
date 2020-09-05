@@ -59,6 +59,11 @@ func login(loginInfo tomon.LoginInfo) error {
 	if err != nil {
 		return err
 	}
+	bot.Event.OnClose = func(err error) {
+		if err != nil {
+			panic(fmt.Errorf("the connection is closed unexpectedly: %w", err))
+		}
+	}
 	bot.Event.OnGuildMemberAdd = func(member *tomon.MemberInfo) {
 		channels, err := bot.ChannelsInGuild(member.GuildID)
 		if err != nil {

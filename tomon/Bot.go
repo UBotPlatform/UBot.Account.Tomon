@@ -39,6 +39,8 @@ type Bot struct {
 		ChannelsInGuild map[string]map[string]int
 	}
 	Event struct {
+		// OnClose is called when the connection to the gateway is closed. err is nil if the connection was closed by user.
+		OnClose             func(err error)
 		OnGuildCreate       func(info *GuildInfo)
 		OnGuildDelete       func(info *GuildInfo)
 		OnGuildUpdate       func(info *GuildInfo)
@@ -106,7 +108,7 @@ func New(payload LoginInfo) (*Bot, error) {
 	}
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to login: %w", err)
 	}
 	var bot = &Bot{
 		token:    result.Token,
@@ -114,16 +116,20 @@ func New(payload LoginInfo) (*Bot, error) {
 		lastPong: time.Now(),
 	}
 	bot.resetState()
-	go bot.connectToGateway()
+	completion := make(chan error)
+	go bot.connectToGateway(completion)
+	err = <-completion
+	if err != nil {
+		return nil, err
+	}
 	return bot, nil
 }
 
-func (bot *Bot) connectToGateway() {
-	if bot.closed {
-		return
-	}
+func (bot *Bot) connectToGateway(completion chan error) {
+	var completionNotifier sync.Once
+	var lastError error
 	for retryIndex := 0; retryIndex < 5; retryIndex++ {
-		success := func() bool {
+		lastError = func() error {
 			defer func() {
 				if err := recover(); err != nil {
 					log.Println("An error occurred:", err)
@@ -131,16 +137,26 @@ func (bot *Bot) connectToGateway() {
 			}()
 			gateway, _, err := websocket.DefaultDialer.Dial(GatewayURL, nil)
 			if err != nil {
-				return false
+				return err
 			}
 			bot.gateway = gateway
 			err = bot.gatewayIdentity()
 			if err != nil {
-				return false
+				return err
 			}
-			return bot.receiveNotification()
+			identified := false
+			err = bot.receiveNotification(func() {
+				completionNotifier.Do(func() {
+					completion <- nil
+				})
+				identified = true
+			})
+			if identified {
+				return nil
+			}
+			return err
 		}()
-		if success {
+		if lastError == nil {
 			retryIndex = 0
 		}
 		if bot.closed {
@@ -148,15 +164,30 @@ func (bot *Bot) connectToGateway() {
 		}
 		time.Sleep(3 * time.Second)
 	}
+	raiseClose := false
+	bot.mux.Lock()
+	if !bot.closed {
+		bot.closed = true
+		raiseClose = true
+	}
+	bot.mux.Unlock()
+	closeError := fmt.Errorf("failed to connect to gateway after 5 attempts, last error: %w", lastError)
+	if raiseClose {
+		if bot.Event.OnClose != nil {
+			bot.Event.OnClose(closeError)
+		}
+	}
+	completionNotifier.Do(func() {
+		completion <- closeError
+	})
 }
 
-func (bot *Bot) receiveNotification() bool {
-	success := false
+func (bot *Bot) receiveNotification(identified func()) error {
 	for {
 		var n gatewayNotification
 		_, content, err := bot.gateway.ReadMessage()
 		if err != nil {
-			break
+			return err
 		}
 		err = json.Unmarshal(content, &n)
 		if err != nil {
@@ -315,9 +346,9 @@ func (bot *Bot) receiveNotification() bool {
 			err = json.Unmarshal(n.D, &data)
 			if err != nil {
 				log.Println("invaild identity notification:", err)
-				break
+				_ = bot.gateway.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseUnsupportedData, ""))
+				return fmt.Errorf("invaild identity notification: %w", err)
 			}
-			success = true
 			bot.resetState()
 			for _, dmChannel := range data.DMChannels {
 				bot.state.Channels[dmChannel.ID] = dmChannel
@@ -332,6 +363,7 @@ func (bot *Bot) receiveNotification() bool {
 					memberSubMap[member.User.ID] = member
 				}
 			}
+			identified()
 		case 3: //HELLO
 			var data helloNotification
 			err = json.Unmarshal(n.D, &data)
@@ -350,7 +382,6 @@ func (bot *Bot) receiveNotification() bool {
 			log.Println("unkown notification, op:", n.Op)
 		}
 	}
-	return success
 }
 func (bot *Bot) User(userID string) (*UserInfo, error) {
 	for _, channel := range bot.state.Channels {
@@ -526,12 +557,21 @@ func (bot *Bot) Self() *UserInfo {
 }
 
 func (bot *Bot) Close() error {
+	raiseClose := false
 	bot.mux.Lock()
-	defer bot.mux.Unlock()
-	bot.closed = true
-	bot.resetState()
-	_ = bot.gateway.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-	_ = bot.gateway.Close()
+	if !bot.closed {
+		bot.closed = true
+		bot.resetState()
+		_ = bot.gateway.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		_ = bot.gateway.Close()
+		raiseClose = true
+	}
+	bot.mux.Unlock()
+	if raiseClose {
+		if bot.Event.OnClose != nil {
+			bot.Event.OnClose(nil)
+		}
+	}
 	return nil
 }
 
