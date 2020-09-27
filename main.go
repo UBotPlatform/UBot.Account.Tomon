@@ -256,6 +256,8 @@ func main() {
 		loginInfo = &tomon.LoginByPassword{FullName: os.Args[4], Password: os.Args[5]}
 	case "token":
 		loginInfo = &tomon.LoginByToken{Token: os.Args[4]}
+	default:
+		loginInfo = &tomon.LoginByToken{Token: os.Args[3]}
 	}
 	err = login(loginInfo)
 	if err != nil {
