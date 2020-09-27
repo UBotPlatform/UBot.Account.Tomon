@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -118,8 +120,8 @@ func sendChatMessage(msgType ubot.MsgType, source string, target string, message
 		case "image_online":
 			if builder.Len() != 0 {
 				_, _ = bot.CreateMessage(source, builder.String())
+				builder.Reset()
 			}
-			builder.Reset()
 			resp, err := http.Get(entity.Data)
 			if err != nil {
 				break
@@ -127,7 +129,26 @@ func sendChatMessage(msgType ubot.MsgType, source string, target string, message
 			defer resp.Body.Close()
 			_, _ = bot.CreateAttachmentMessage(source, []tomon.ReaderWithName{{
 				Reader: resp.Body,
-				Name:   fmt.Sprintf("image-%d.png", time.Now().UnixNano()),
+				Name: fmt.Sprintf(
+					"image-%d%s",
+					time.Now().UnixNano(),
+					guessImageExtByMIMEType(resp.Header.Get("Content-Type"), ".png")),
+			}})
+		case "image_base64":
+			if builder.Len() != 0 {
+				_, _ = bot.CreateMessage(source, builder.String())
+				builder.Reset()
+			}
+			binary, err := base64.StdEncoding.DecodeString(entity.Data)
+			if err != nil {
+				break
+			}
+			_, _ = bot.CreateAttachmentMessage(source, []tomon.ReaderWithName{{
+				Reader: bytes.NewReader(binary),
+				Name: fmt.Sprintf(
+					"image-%d%s",
+					time.Now().UnixNano(),
+					guessImageExtByBytes(binary, ".png")),
 			}})
 		case "file_online":
 			if builder.Len() != 0 {
