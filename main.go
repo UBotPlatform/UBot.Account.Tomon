@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -38,9 +39,16 @@ func toUBotMessage(msg *tomon.MessageInfo) string {
 	var builder ubot.MsgBuilder
 	for _, attachment := range msg.Attachments {
 		if attachment.Height|attachment.Width == 0 {
-			builder.WriteEntity(ubot.MsgEntity{Type: "file_online", Data: attachment.Filename + "|" + attachment.URL})
+			builder.WriteEntity(ubot.MsgEntity{
+				Type:      "file",
+				Args:      []string{attachment.URL},
+				NamedArgs: map[string]string{"filename": attachment.Filename},
+			})
 		} else {
-			builder.WriteEntity(ubot.MsgEntity{Type: "image_online", Data: attachment.URL})
+			builder.WriteEntity(ubot.MsgEntity{
+				Type: "image",
+				Args: []string{attachment.URL},
+			})
 		}
 	}
 	if msg.Content != nil {
@@ -112,59 +120,48 @@ func sendChatMessage(msgType ubot.MsgType, source string, target string, message
 	for _, entity := range entities {
 		switch entity.Type {
 		case "text":
-			builder.WriteString(entity.Data)
+			builder.WriteString(entity.FirstArgOrEmpty())
 		case "at":
-			builder.WriteString(fmt.Sprintf("<@%s>", entity.Data))
+			builder.WriteString(fmt.Sprintf("<@%s>", entity.FirstArgOrEmpty()))
 		default:
 			builder.WriteString("[不支持的消息]")
-		case "image_online":
+		case "image":
 			if builder.Len() != 0 {
 				_, _ = bot.CreateMessage(source, builder.String())
 				builder.Reset()
 			}
-			resp, err := http.Get(entity.Data)
-			if err != nil {
-				break
-			}
-			defer resp.Body.Close()
-			_, _ = bot.CreateAttachmentMessage(source, []tomon.ReaderWithName{{
-				Reader: resp.Body,
-				Name: fmt.Sprintf(
-					"image-%d%s",
-					time.Now().UnixNano(),
-					guessImageExtByMIMEType(resp.Header.Get("Content-Type"), ".png")),
-			}})
-		case "image_base64":
-			if builder.Len() != 0 {
-				_, _ = bot.CreateMessage(source, builder.String())
-				builder.Reset()
-			}
-			binary, err := base64.StdEncoding.DecodeString(entity.Data)
-			if err != nil {
-				break
+			var imageReader io.Reader
+			var imageExt string
+			imageBase64, useBase64 := entity.NamedArgs["base64"]
+			if useBase64 {
+				imageBinary, err := base64.StdEncoding.DecodeString(imageBase64)
+				if err != nil {
+					break
+				}
+				imageExt = guessImageExtByBytes(imageBinary, ".png")
+				imageReader = bytes.NewReader(imageBinary)
+			} else {
+				resp, err := http.Get(entity.FirstArgOrEmpty())
+				if err != nil {
+					break
+				}
+				imageExt = guessImageExtByMIMEType(resp.Header.Get("Content-Type"), ".png")
+				imageReader = resp.Body
 			}
 			_, _ = bot.CreateAttachmentMessage(source, []tomon.ReaderWithName{{
-				Reader: bytes.NewReader(binary),
-				Name: fmt.Sprintf(
-					"image-%d%s",
-					time.Now().UnixNano(),
-					guessImageExtByBytes(binary, ".png")),
+				Reader: imageReader,
+				Name:   fmt.Sprintf("image-%d%s", time.Now().UnixNano(), imageExt),
 			}})
-		case "file_online":
+			if imageReadCloser, canClose := imageReader.(io.ReadCloser); canClose {
+				imageReadCloser.Close()
+			}
+		case "file":
 			if builder.Len() != 0 {
 				_, _ = bot.CreateMessage(source, builder.String())
 			}
 			builder.Reset()
-			var fileName string
-			var url string
-			pSeq := strings.IndexByte(entity.Data, '|')
-			if pSeq == -1 {
-				fileName = fmt.Sprintf("file-%d", time.Now().UnixNano())
-				url = entity.Data
-			} else {
-				fileName = entity.Data[:pSeq]
-				url = entity.Data[pSeq+1:]
-			}
+			fileName := entity.NamedArgOr("filename", fmt.Sprintf("untitled-file-%d", time.Now().UnixNano()))
+			url := entity.FirstArgOrEmpty()
 			resp, err := http.Get(url)
 			if err != nil {
 				break
